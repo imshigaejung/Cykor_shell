@@ -2,8 +2,8 @@
 #define INTERNAL_COMMAND_H
 
 
-void execute_cd(char **cmd_args);
-void execute_pwd();
-void execute_exit();
+int execute_cd(char **cmd_args);
+int execute_pwd();
+int execute_exit();
 
 #endif
