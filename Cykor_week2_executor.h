@@ -4,11 +4,10 @@
 
 
 
-int scan_command(char**command_array, TokenInfo *tokens, int token_count);
-TokenType is_command(const char*command);
-void execute_command(char**command_array, TokenInfo *tokens, int token_count);
-void execute_builtin(char**cmd_args);
-void execute_external(char**cmd_args);
+int is_command(const char*command, TokenInfo*tokens);
+int execute_command(char **command_chunk, ChunkInfo *chunk, int chunk_count, int chunk_num);
+int execute_builtin_command(char**cmd_args);
+int should_execute_next(int status, ChunkType operator);
 
 
 
