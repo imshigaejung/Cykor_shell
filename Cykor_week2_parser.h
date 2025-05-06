@@ -2,28 +2,41 @@
 #define PARSER_H
 
 typedef enum {
-    CMD_NONE,
-    CMD_INTERNAL,
-    CMD_EXTERNAL,
+    CHUNK,
     AND,
     OR,
     BACK,
-    PIPE
+    PIPE,
+    SEPERATOR
+} ChunkType;
+
+typedef enum {
+    CMD_INTERNAL,
+    CMD_EXTERNAL,
+    PARAM
 } TokenType;
 
-
 typedef struct {
-    TokenType type; // "PIPE", "OR", "COMMAND", etc
+    ChunkType type;
     int start;
     int end;
-} TokenInfo;
+} ChunkInfo;
+
+typedef struct 
+{
+    TokenType type;
+    int start;
+    int end;
+}TokenInfo;
 
 
 
-int scan_tokens(const char *input, TokenInfo *tokens, int *token_count);
-int parse_with_token_info(const char *input, TokenInfo *tokens, int token_count);
-void free_token_types(TokenInfo *tokens, int token_count);
+int scan_tokens();
+int scan_chunk(const char *input, ChunkInfo *tokens, int *token_count);
+int parse_with_token_info(const char *input, ChunkInfo *tokens, int token_count);
+void free_token_types(ChunkInfo *tokens, int token_count);
 char **build_token_array(const char *input, TokenInfo *tokens, int token_count);
+char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count);
 void free_token_array(char **array);
 
 #endif
