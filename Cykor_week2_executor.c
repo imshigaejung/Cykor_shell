@@ -7,101 +7,85 @@
 #include "Cykor_week2_internal_command.h"
 #include "Cykor_week2_external_command.h"
 
+#define MAX_TOKENS 120
 
 char*builtin_list[] = {"cd", "pwd", "echo","exit","clear"};
 char*external_list[] = {"cat","ls","whoami"};
 
+int should_execute_next(int status, ChunkType operator){
 
-TokenType is_command(const char*command){
+    if(status == 0 && operator == OR){
+        return 1;
+    }
+    else if(status == 1 && operator == AND){
+        return 1;
+    }
+    else if(operator == SEPERATOR){
+        return 1;
+    }
+    else{
+        return 0;
+    }
+}
+
+int is_command(const char*command, TokenInfo*tokens){
 
     int builtin_len = sizeof(builtin_list)/sizeof(char*);
     int external_len = sizeof(external_list)/sizeof(char*);
 
-    for(int i = 0; i<builtin_len; i++){
+    for(int i =0; i<builtin_len; i++){
         if (strcmp(command, builtin_list[i]) == 0) {
-            return CMD_INTERNAL;
+            tokens[0].type = CMD_INTERNAL;
         }
     }
-    for(int i = 0; i<external_len; i++){
+    for(int i = 0; i< external_len; i++){
         if(strcmp(command, external_list[i]) == 0) {
-            return CMD_EXTERNAL;
+            tokens[0].type = CMD_EXTERNAL;
         }
-
     }
-    return CMD_NONE;
-}
-
-int scan_command(char**command_array, TokenInfo *tokens, int token_count){
-    if ((command_array[0] == NULL) || (tokens == NULL))
-        return -1;
-
-    for(int i = 0; i<token_count; i++){
-
-        if(tokens[i].type != CMD_NONE){
-            continue;
-        }
-        else{
-            tokens[i].type = is_command(command_array[i]);
-        }
-    } 
     return 0;
 }
 
-void execute_builtin(char**cmd_args){
+int execute_builtin_command(char**cmd_args){
 
         if(strcmp(cmd_args[0],"cd") == 0){
-            execute_cd(cmd_args);
+            return execute_cd(cmd_args);
         }
         else if(strcmp(cmd_args[0],"pwd") == 0){
-            execute_pwd();
+            return execute_pwd();
         }
         else if(strcmp(cmd_args[0], "exit") == 0){
-            execute_exit();
+            return execute_exit();
         }
 }
 
-void execute_external(char**cmd_args){
 
-}
+int execute_command(char **command_chunk, ChunkInfo *chunk, int chunk_count, int chunk_num) {
+    int i = chunk_num;
+    int status = 0;
+    int token_count = 0;
+    char**token_array;
+    TokenInfo tokens[MAX_TOKENS];
 
-void execute_command(char **command_array, TokenInfo *tokens, int token_count) {
-    int i = 0;
+    scan_tokens(command_chunk[i], tokens, &token_count);
+    token_array = build_token_array(command_chunk[i], tokens, token_count);
+    is_command(token_array[0], tokens);
 
-    while (i < token_count) {
-        // 현재 토큰이 명령어면 실행 준비
-        if (tokens[i].type == CMD_INTERNAL || tokens[i].type == CMD_EXTERNAL) {
-            int cmd_start = i;
-            int cmd_end = i;
+      // 실행
+    if (tokens[0].type == CMD_INTERNAL) {
+        status = execute_builtin_command(token_array);
+    } 
+    else if(tokens[0].type == CMD_EXTERNAL)
+    {
+        status = execute_external_command(token_array);
+    }
+    else{
+        status = 0;
+        fprintf(stderr, "%s: command not found\n",token_array[0]);
+    }
 
-            // 인자는 CMD_NONE인 것만 포함
-            for (int j = i + 1; j < token_count; j++) {
-                if (tokens[j].type == AND || tokens[j].type == OR || tokens[j].type == PIPE || tokens[j].type == BACK) {
-                    break;
-                }
-                
-                cmd_end = j;
-            }
-
-            // 명령어 + 인자 배열 만들기
-            int argc = cmd_end - cmd_start + 2; // +1 for NULL
-            char *cmd_args[argc];
-            for (int k = cmd_start; k <= cmd_end; k++) {
-                cmd_args[k - cmd_start] = command_array[k];
-            }
-            cmd_args[argc - 1] = NULL;
-
-            // 실행
-            if (tokens[i].type == CMD_INTERNAL) {
-                execute_builtin(cmd_args);
-            } else {
-                execute_external(cmd_args);
-            }
-
-            i = cmd_end + 1; // 다음 명령어로 넘어감
-        } else {
-            i++; // 명령어가 아니면 다음 토큰으로
-        }
+    if(should_execute_next(status, chunk[i+1].type)){
+        chunk_num += 2;
+        execute_command(command_chunk, chunk, chunk_count, chunk_num);
     }
 }
-
-
