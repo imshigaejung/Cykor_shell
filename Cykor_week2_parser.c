@@ -4,43 +4,51 @@
 #include <ctype.h>
 #include "Cykor_week2_parser.h"
 
-int scan_tokens(const char*chunk, TokenInfo *tokens, int* token_count){
+//chunk를 이제 명령어 처리를 할 수 있도록 다시 token 단위로 구분
+int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
     int i = 0;
     int count = 0;
-    int in_quote = 0;
-    char quote_char = '\0';
+    int pipe = 0;
 
     while (chunk[i] != '\0') {
+        while (isspace(chunk[i])) i++;
 
-        if (isspace(chunk[i])) {
-            i++;
-            continue;
+        if (chunk[i] == '|') {
+            if (chunk[i + 1] != '|') {
+                count++;
+                pipe++;
+                return pipe;
+            }
         }
 
         int start = i;
 
-        if(in_quote == 0 && (chunk[i] == '\''||chunk[i]=='"')){
-            quote_char = chunk[i];
-            in_quote = 1;
-            while(chunk[i]&&chunk[i] != quote_char){
-                i++;
-            }
-            if(chunk[i] == quote_char && in_quote == 1){
-                in_quote = 0;
-                tokens[count++] = (TokenInfo){PARAM, start, i - 1};
-            }
-        }
-  
-        while(chunk[i] && !isspace(chunk[i])){
-            i++;
-        }
-        tokens[count++] = (TokenInfo){PARAM, start, i - 1};
+        // 인용부호 처리
+        if (chunk[i] == '"' || chunk[i] == '\'') {
+            char quote_char = chunk[i++];
+            start = i; // 인용부호 다음부터
+            while (chunk[i] && chunk[i] != quote_char) i++;
+            int end = i - 1; // 닫는 인용부호 전까지
 
+            if (chunk[i] == quote_char) i++;  // 닫는 인용부호 넘기기
+
+            tokens[count++] = (TokenInfo){PARAM, start, end};
+            continue;
+        }
+
+        // 일반 파라미터
+        start = i;
+        while (chunk[i] && !isspace(chunk[i]) && chunk[i] != '|') i++;
+        if (i > start) {
+            tokens[count++] = (TokenInfo){PARAM, start, i - 1};
+        }
     }
+
     *token_count = count;
     return 0;
 }
-//입력받은 문자열을 문자 단위로 분석 --> 
+
+//입력받은 문자열을 다중 명령어 연산자 기준으로 chunk 단위로 구분
 int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
     int i = 0;
     int count = 0;
@@ -58,8 +66,9 @@ int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
             if (input[i + 1] == '|') {
                 chunk[count++] = (ChunkInfo){OR, i, i + 1};
                 i += 2;
-            } else {
-                chunk[count++] = (ChunkInfo){PIPE, i, i};
+            } 
+            else {
+                count++;
                 i++;
             }
         }
@@ -82,7 +91,7 @@ int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
         //구분자가 아닌 문자열에 대하여 명령어로 인식
         else {
             int start = i;
-            while (input[i] && input[i] != '|' && input[i] != '&' && input[i] != ';') {
+            while (input[i] && !(input[i] == '|' && input[i+1] == '|') && input[i] != '&' && input[i] != ';') {
                 i++;
             }
             chunk[count++] = (ChunkInfo){CHUNK, start, i - 1};
@@ -93,6 +102,45 @@ int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
     return 0;
 }
 
+//파이프 분기 시 한 청크를 파이프 기호 기준으로 다시 chunk 단위로 구분
+int scan_pipe(const char *input, ChunkInfo *chunk, int *chunk_count, int *pipe_count){
+    int i = 0;
+    int pipe = 0;
+    int count = 0;
+
+    while (input[i] != '\0') {
+
+        //공백을 건너 뛰는 코드
+        if (isspace(input[i])) {
+            i++;
+            continue;
+        }
+        
+        // |를 구분
+        if (input[i] == '|') {
+            if (input[i + 1] != '|') {
+                chunk[count++] = (ChunkInfo){PIPE, i, i};
+                pipe++;
+                i ++;
+            } 
+        }
+      
+        //구분자가 아닌 문자열에 대하여 명령어로 인식
+        else {
+            int start = i;
+            while (input[i] &&input[i] != '|') {
+                i++;
+            }
+            chunk[count++] = (ChunkInfo){CHUNK, start, i - 1};
+        }
+    }
+
+    *chunk_count = count;
+    *pipe_count = pipe;
+    return 0;
+}
+
+//scan_tokens에서 받은 정보를 기반으로 한 chunk를 token으로 나눈 배열 생성
 char **build_token_array(const char *input, TokenInfo *tokens, int token_count) {
     char **result = malloc(sizeof(char *) * (token_count + 1));  // 널문자 입력을 위해 1만큼 큰 바이트 할당
     if (!result) return NULL;
@@ -113,7 +161,7 @@ char **build_token_array(const char *input, TokenInfo *tokens, int token_count) 
     result[token_count] = NULL;  // execvp 호환 가능하게
     return result;
 }
-
+//scan_chunk에서 받은 정보를 바탕으로 입력을 chunk들로 나눈 배열 생성
 char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count) {
     char **result = malloc(sizeof(char *) * (chunk_count + 1));  // 널문자 입력을 위해 1만큼 큰 바이트 할당
     if (!result) return NULL;
@@ -135,12 +183,5 @@ char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count) {
     return result;
 }
 
-
-// token_array에 저장되었던 토큰들에게 동적 할당 되었던 메모리 해제
+// 파싱된 배열에 저장되었던 요소들에 동적 할당 되었던 메모리 해제
 void free_token_array(char **array) {
-    if (!array) return;
-    for (int i = 0; array[i] != NULL; i++) {
-        free(array[i]);
-    }
-    free(array);
-}
