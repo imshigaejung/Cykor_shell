@@ -520,7 +520,7 @@ int command_branch(char **command_chunk, ChunkInfo *chunk, int chunk_count, int 
         }
     }
     
-    //다음 청크의 실행을 결정하는 부분. chunk 배열의 마지막에는 '\0'이 있으므로 chunk[i+1]을 호출해도 Segmentation Fault는 발생하지 않는다!
+    //다음 청크의 실행을 결정하는 부분. chunk[i+1]의 내용이 없으면 쓰레기 값을 참조하므로 i+1 < chunk_count부터 검사
     if( i + 1 < chunk_count && should_execute_next(status, chunk[i+1].type)){
         chunk_num += 2;
         command_branch(command_chunk, chunk, chunk_count, chunk_num);
