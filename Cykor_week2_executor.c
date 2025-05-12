@@ -26,7 +26,7 @@ int should_execute_next(int status, ChunkType operator){
         return 1;
     }
     else if(operator == BACK){
-        return 0;
+        return 1;
     }
     else{
         return 0;
@@ -36,14 +36,17 @@ int should_execute_next(int status, ChunkType operator){
 //입력받은 문자열이 명령어에 해당하는지 검사하는 함수
 int is_command(const char*command, TokenInfo*tokens){
 
+    //현재 모든 토큰의 자료형은 PARAM인 상태태
     int builtin_len = sizeof(builtin_list)/sizeof(char*);
     int external_len = sizeof(external_list)/sizeof(char*);
 
+    //토큰이 내장 명령어 리스트에 있다면 CMD_INTERNAL 부여
     for(int i =0; i<builtin_len; i++){
         if (strcmp(command, builtin_list[i]) == 0) {
             tokens[0].type = CMD_INTERNAL;
         }
     }
+    //토큰이 외부 명령어 리스트에 있다면 CMD_EXTERNAL 부여
     for(int i = 0; i< external_len; i++){
         if(strcmp(command, external_list[i]) == 0) {
             tokens[0].type = CMD_EXTERNAL;
@@ -97,7 +100,7 @@ int execute_command(char ** token_array, TokenInfo *tokens, int is_background){
 
     //백그라운드 실행 시 출력을 위한 잡 번호호
     static int job_id = 1;
-
+    int status;
     // 첫번째 토큰의 명령어 타입에 따라 실행을 분기. 이때 실행 결과는 0 or 1의 형태로 status에 저장
     if (tokens[0].type == CMD_INTERNAL) {
         if (is_background) {
@@ -106,14 +109,15 @@ int execute_command(char ** token_array, TokenInfo *tokens, int is_background){
                 // 자식 프로세스: 내장 명령 실행 (의미는 없음)
                 fflush(stdout);
                 fflush(stderr);
-                execute_builtin_command(token_array);
+                status = execute_builtin_command(token_array);
                 exit(0);
             } else {
                 // 부모는 job 번호 출력만 하고 프롬프트로
                 printf("[%d] %d\n", job_id++, pid);
                 fflush(stdout);
+                status = 1;
             }
-            return 1;
+            return status;
     } else {
         return execute_builtin_command(token_array);  // 평소처럼 부모에서 실행
 }
@@ -206,6 +210,7 @@ int execute_pipe(char** cmd_args, ChunkInfo *pipe_chunk, int pipe_count, int is_
 
 //전체 명령어 실행에 대한 중앙 분기점
 int command_branch(char **command_chunk, ChunkInfo *chunk, int chunk_count, int chunk_num) {
+
     //몇 번째 청크를 대상으로 명령 수행을 시작할 것인지 구분하기 위한 장치
     int i = chunk_num;
     int status = 0;
@@ -213,17 +218,17 @@ int command_branch(char **command_chunk, ChunkInfo *chunk, int chunk_count, int 
     char**token_array;
     int is_background = 0;
     TokenInfo tokens[MAX_TOKENS];
-
     // &&나 ||가 앞에 나오는 경우를 잡아내서 에러를 발생시키는 코드
     if(chunk[i].type != CHUNK){
         status = 0;
         fprintf(stderr, "bash: syntax error near unexpected token \'%s\'\n",command_chunk[i]);
         return 0;
     }
-    if(chunk[i+1].type == BACK){
+    if(chunk[i+1].type == BACK && i + 1 < chunk_count){
         is_background = 1;
     }
-
+ 
+    
 
     //청크를 토큰화 시키고 배열로 만들어 처리에 용이하게 가공 - 만약 파이프가 감지되면 파이프 실행으로 분기
     if(scan_tokens(command_chunk[i], tokens, &token_count)){
@@ -243,19 +248,20 @@ int command_branch(char **command_chunk, ChunkInfo *chunk, int chunk_count, int 
         token_array = build_token_array(command_chunk[i], tokens, token_count);
         //청크의 첫번째 토큰을 검사해서 명령어인지 아닌지 검사
         is_command(token_array[0], tokens);
-
         status = execute_command(token_array, tokens, is_background);
         //토큰들 동적할당 해뒀던 메모리 해제
         free_token_array(token_array);
+        if (is_background) {
+            return status;
+        }
     }
     
     //다음 청크의 실행을 결정하는 부분. chunk 배열의 마지막에는 '\0'이 있으므로 chunk[i+1]을 호출해도 Segmentation Fault는 발생하지 않는다!
-    if(should_execute_next(status, chunk[i+1].type)){
+    if(should_execute_next(status, chunk[i+1].type) && i + 1 < chunk_count){
         chunk_num += 2;
         command_branch(command_chunk, chunk, chunk_count, chunk_num);
     }
 
     return status;
 }
-
 
