@@ -31,12 +31,11 @@ typedef struct
 
 
 
-int scan_tokens(const char*chunk, TokenInfo *tokens, int* token_count);
-int scan_chunk(const char *input, ChunkInfo *tokens, int *token_count);
-int scan_pipe(const char *input, ChunkInfo *chunk, int *chunk_count, int *pipe_count);
+int scan_tokens(const char*chunk, TokenInfo **chunk_ptr, int* token_count);
+int scan_chunk(const char *input, ChunkInfo **chunk_ptr, int *chunk_count);
+int scan_pipe(const char *input, ChunkInfo **chunk_ptr, int *chunk_count, int *pipe_count);
 char **build_token_array(const char *input, TokenInfo *tokens, int token_count);
 char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count);
 void free_token_array(char **array);
 
 #endif
-
