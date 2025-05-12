@@ -10,6 +10,6 @@ int execute_command(char ** token_array, TokenInfo *tokens, int is_background);
 int execute_builtin_command(char**cmd_args);
 int should_execute_next(int status, ChunkType operator);
 int execute_pipe(char** cmd_args, ChunkInfo *pipe_chunk, int pipe_count, int is_background);
-
+const char* token_type_to_str(ChunkType type); 
 
 #endif
