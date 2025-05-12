@@ -5,28 +5,13 @@
 #include "Cykor_week2_parser.h"
 
 //chunk를 이제 명령어 처리를 할 수 있도록 다시 token 단위로 구분
-int scan_tokens(const char* chunk, TokenInfo **tokens_ptr, int* token_count){
-    TokenInfo *tokens = *tokens_ptr;
+int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
+
     int i = 0;
     int count = 0;
     int pipe = 0;
-    int token_capacity = 10;
 
     while (chunk[i] != '\0') {
-
-        //입력이 최초 할당된 크기를 넘어가면 *tokens를 확장
-        if(count >= token_capacity){
-            token_capacity += 10;
-            TokenInfo *new_tokens = realloc(tokens, sizeof(TokenInfo)*token_capacity);
-            //realloc 실패 시 에러 종료
-            if(!new_tokens){
-                perror("realloc");
-                free(tokens);
-                exit(1);
-            }
-            tokens = new_tokens;
-            *tokens_ptr = tokens;
-        }
         //공백 무시
         while (isspace(chunk[i])) i++;
 
@@ -69,27 +54,11 @@ int scan_tokens(const char* chunk, TokenInfo **tokens_ptr, int* token_count){
 }
 
 //입력받은 문자열을 다중 명령어 연산자 기준으로 chunk 단위로 구분
-int scan_chunk(const char *input, ChunkInfo **chunk_ptr, int *chunk_count) {
-    ChunkInfo *chunk = *chunk_ptr;
+int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
     int i = 0;
     int count = 0;
-    int chunk_capacity = 10;
 
     while (input[i] != '\0') {
-
-        //입력이 최초 할당된 크기를 넘어가면 *chunk를 확장
-        if(count >= chunk_capacity){
-            chunk_capacity += 10;
-            ChunkInfo *new_chunk = realloc(chunk, sizeof(ChunkInfo)*chunk_capacity);
-            //realloc 실패 시 에러 종료
-            if(!new_chunk){
-                perror("realloc");
-                free(chunk);
-                exit(1);
-            }
-            chunk = new_chunk;
-            *chunk_ptr = chunk;
-        }
 
         //공백을 건너 뛰는 코드
         if (isspace(input[i])) {
@@ -138,29 +107,13 @@ int scan_chunk(const char *input, ChunkInfo **chunk_ptr, int *chunk_count) {
     return 0;
 }
 
-//파이프 분기 시 한 청크를 파이프 기호 기준으로 다시 chunk 단위로 구분
-int scan_pipe(const char *input, ChunkInfo **chunk_ptr, int *chunk_count, int *pipe_count){
-    ChunkInfo *chunk = *chunk_ptr;
+//파이프 분기 시 입력 받은 청크를 파이프 기호 기준으로 다시 chunk 단위로 구분
+int scan_pipe(const char *input, ChunkInfo *chunk, int *chunk_count, int *pipe_count){
     int i = 0;
     int pipe = 0;
     int count = 0;
-    int chunk_capacity = 10;
 
     while (input[i] != '\0') {
-
-         //입력이 최초 할당된 크기를 넘어가면 *chunk를 확장
-        if(count >= chunk_capacity){
-            chunk_capacity += 10;
-            ChunkInfo *new_chunk = realloc(chunk, sizeof(ChunkInfo)*chunk_capacity);
-            //realloc 실패 시 에러 종료
-            if(!new_chunk){
-                perror("realloc");
-                free(chunk);
-                exit(1);
-            }
-            chunk = new_chunk;
-            *chunk_ptr = chunk;
-        }
 
         //공백을 건너 뛰는 코드
         if (isspace(input[i])) {
@@ -186,7 +139,7 @@ int scan_pipe(const char *input, ChunkInfo **chunk_ptr, int *chunk_count, int *p
             chunk[count++] = (ChunkInfo){CHUNK, start, i - 1};
         }
     }
-    
+
     *chunk_count = count;
     *pipe_count = pipe;
     return 0;
@@ -198,7 +151,7 @@ char **build_token_array(const char *input, TokenInfo *tokens, int token_count) 
     if (!result) return NULL;
 
     for (int i = 0; i < token_count; i++) {
-        int len = tokens[i].end - tokens[i].start + 1; // 널 문자를 집어넣기 위해 길이를 문자열 크기보다 1만큼 크게 설정정
+        int len = tokens[i].end - tokens[i].start + 1; // 널 문자를 집어넣기 위해 길이를 문자열 크기보다 1만큼 크게 설정
         result[i] = malloc(len + 1);
         if (!result[i]) {
             // 해제 후 종료
@@ -213,6 +166,7 @@ char **build_token_array(const char *input, TokenInfo *tokens, int token_count) 
     result[token_count] = NULL;  // execvp 호환 가능하게
     return result;
 }
+
 //scan_chunk에서 받은 정보를 바탕으로 입력을 chunk들로 나눈 배열 생성
 char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count) {
     char **result = malloc(sizeof(char *) * (chunk_count + 1));  // 널문자 입력을 위해 1만큼 큰 바이트 할당
@@ -243,4 +197,5 @@ void free_token_array(char **array) {
     }
     free(array);
 }
+
 
