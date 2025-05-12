@@ -5,14 +5,32 @@
 #include "Cykor_week2_parser.h"
 
 //chunk를 이제 명령어 처리를 할 수 있도록 다시 token 단위로 구분
-int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
+int scan_tokens(const char* chunk, TokenInfo **tokens_ptr, int* token_count){
+    TokenInfo *tokens = *tokens_ptr;
     int i = 0;
     int count = 0;
     int pipe = 0;
+    int token_capacity = 10;
 
     while (chunk[i] != '\0') {
+
+        //입력이 최초 할당된 크기를 넘어가면 *tokens를 확장
+        if(count >= token_capacity){
+            token_capacity += 10;
+            TokenInfo *new_tokens = realloc(tokens, sizeof(TokenInfo)*token_capacity);
+            //realloc 실패 시 에러 종료
+            if(!new_tokens){
+                perror("realloc");
+                free(tokens);
+                exit(1);
+            }
+            tokens = new_tokens;
+            *tokens_ptr = tokens;
+        }
+        //공백 무시
         while (isspace(chunk[i])) i++;
 
+        //파이프 감지 시 인덱싱 종료 - 이후 파이프 분기에서 파이프 기준으로 다시 파싱
         if (chunk[i] == '|') {
             if (chunk[i + 1] != '|') {
                 count++;
@@ -25,6 +43,7 @@ int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
 
         // 인용부호 처리
         if (chunk[i] == '"' || chunk[i] == '\'') {
+            // "로 시작해서 '로 닫히는 경우 방지
             char quote_char = chunk[i++];
             start = i; // 인용부호 다음부터
             while (chunk[i] && chunk[i] != quote_char) i++;
@@ -32,6 +51,7 @@ int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
 
             if (chunk[i] == quote_char) i++;  // 닫는 인용부호 넘기기
 
+            //전부 하나의 파라미터터로 배정
             tokens[count++] = (TokenInfo){PARAM, start, end};
             continue;
         }
@@ -49,11 +69,27 @@ int scan_tokens(const char* chunk, TokenInfo *tokens, int* token_count){
 }
 
 //입력받은 문자열을 다중 명령어 연산자 기준으로 chunk 단위로 구분
-int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
+int scan_chunk(const char *input, ChunkInfo **chunk_ptr, int *chunk_count) {
+    ChunkInfo *chunk = *chunk_ptr;
     int i = 0;
     int count = 0;
+    int chunk_capacity = 10;
 
     while (input[i] != '\0') {
+
+        //입력이 최초 할당된 크기를 넘어가면 *chunk를 확장
+        if(count >= chunk_capacity){
+            chunk_capacity += 10;
+            ChunkInfo *new_chunk = realloc(chunk, sizeof(ChunkInfo)*chunk_capacity);
+            //realloc 실패 시 에러 종료
+            if(!new_chunk){
+                perror("realloc");
+                free(chunk);
+                exit(1);
+            }
+            chunk = new_chunk;
+            *chunk_ptr = chunk;
+        }
 
         //공백을 건너 뛰는 코드
         if (isspace(input[i])) {
@@ -103,12 +139,28 @@ int scan_chunk(const char *input, ChunkInfo *chunk, int *chunk_count) {
 }
 
 //파이프 분기 시 한 청크를 파이프 기호 기준으로 다시 chunk 단위로 구분
-int scan_pipe(const char *input, ChunkInfo *chunk, int *chunk_count, int *pipe_count){
+int scan_pipe(const char *input, ChunkInfo **chunk_ptr, int *chunk_count, int *pipe_count){
+    ChunkInfo *chunk = *chunk_ptr;
     int i = 0;
     int pipe = 0;
     int count = 0;
+    int chunk_capacity = 10;
 
     while (input[i] != '\0') {
+
+         //입력이 최초 할당된 크기를 넘어가면 *chunk를 확장
+        if(count >= chunk_capacity){
+            chunk_capacity += 10;
+            ChunkInfo *new_chunk = realloc(chunk, sizeof(ChunkInfo)*chunk_capacity);
+            //realloc 실패 시 에러 종료
+            if(!new_chunk){
+                perror("realloc");
+                free(chunk);
+                exit(1);
+            }
+            chunk = new_chunk;
+            *chunk_ptr = chunk;
+        }
 
         //공백을 건너 뛰는 코드
         if (isspace(input[i])) {
@@ -134,7 +186,7 @@ int scan_pipe(const char *input, ChunkInfo *chunk, int *chunk_count, int *pipe_c
             chunk[count++] = (ChunkInfo){CHUNK, start, i - 1};
         }
     }
-
+    
     *chunk_count = count;
     *pipe_count = pipe;
     return 0;
@@ -167,7 +219,7 @@ char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count) {
     if (!result) return NULL;
 
     for (int i = 0; i < chunk_count; i++) {
-        int len = chunk[i].end - chunk[i].start + 1; // 널 문자를 집어넣기 위해 길이를 문자열 크기보다 1만큼 크게 설정정
+        int len = chunk[i].end - chunk[i].start + 1; // 널 문자를 집어넣기 위해 길이를 문자열 크기보다 1만큼 크게 설정
         result[i] = malloc(len + 1);
         if (!result[i]) {
             // 해제 후 종료
@@ -185,3 +237,10 @@ char **build_chunk_array(const char *input, ChunkInfo*chunk, int chunk_count) {
 
 // 파싱된 배열에 저장되었던 요소들에 동적 할당 되었던 메모리 해제
 void free_token_array(char **array) {
+    if (!array) return;
+    for (int i = 0; array[i] != NULL; i++) {
+        free(array[i]);
+    }
+    free(array);
+}
+
