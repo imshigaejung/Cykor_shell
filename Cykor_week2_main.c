@@ -9,8 +9,6 @@
 #include <termios.h>
 #include <pwd.h>
 
-// 현재 토큰의 개수는 정적으로 선언되어있지만, 후에 동적으로 바꿔야 함.
-#define MAX_CHUNK 120
 
 //사용자 정보 관리용 구조체
 typedef struct user_info
@@ -19,9 +17,9 @@ typedef struct user_info
     char device_name[20];
 }info;
 
-//종료된 모든 자식 프로세스를 비동기로 수거함 - 좀비 프로세스 방지
+//종료된 모든 자식 프로세스를 비동기로 수거함 - 좀비 프로세스 방지 (백그라운드 실행을 부모가 wait 하지 않는 형태로 구현 했으므로 반드시 필요!)
 void sigchld_handler(int sig) {
-    // 종료된 모든 자식 프로세스를 비동기로 수거
+    // 종료된 모든 자식 프로세스(-1)를 비동기(WNOHANG)로 수거
     while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
@@ -85,15 +83,16 @@ void print_prompt(info user_informaition) {
 int main(){
     char *input;
     char **chunk_array;
-    //사용자 정보는 혹시나 변형되는 일 없도록 static 선언
+    //사용자 정보는 혹시나 잘못 초기화 되는 일 없도록 static 선언
     static info user_information; 
     int chunk_count = 0;
-    ChunkInfo chunk[MAX_CHUNK];
+    //기본 청크 배열의 크기는 10으로 설정, 이후 필요에 따라 크기 확장
+    ChunkInfo *chunk = malloc(sizeof(ChunkInfo)*10);
 
     //사용자 정보 저장
     Login(&user_information);
 
-    //백그라운드 실행 시 좀비 프로세스 발생 막기 위한 함수
+    //자식 프로세스 종료 이후 SIGCHLD 신호가 전달되면 sighcld_handler 호출
     signal(SIGCHLD, sigchld_handler);
 
     while(1){
@@ -109,20 +108,19 @@ int main(){
         }
         
         //문자열 스캔 --> 구분자, 공백, 명령어 구분
-        scan_chunk(input, chunk, &chunk_count);
+        scan_chunk(input, &chunk, &chunk_count);
 
         //스캔한 문자열을 토큰화 시켜서 parsed_array에 저장
         chunk_array = build_chunk_array(input, chunk, chunk_count);
-
 
         //이제 input에 할당 되었던 메모리 다시 해제
         free(input);
 
         //토큰들을 명령어 처리 함수로 넘김
         command_branch(chunk_array, chunk, chunk_count,0);
-
         //청크들 동적할당 해뒀던 메모리 해제
+        free(chunk);
         free_token_array(chunk_array);
-    }
 
+    }
 }
